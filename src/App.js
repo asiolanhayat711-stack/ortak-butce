@@ -18,7 +18,6 @@ export default function App() {
   const [islemler, setIslemler] = useState([]);
   const [bankalar, setBankalar] = useState([]);
   const [duzenliOdemeler, setDuzenliOdemeler] = useState([]);
-  const [birikimler, setBirikimler] = useState([]);
 
   // Form Durumları
   const [ay, setAy] = useState('2026-08');
@@ -32,8 +31,6 @@ export default function App() {
   const [yeniBanka, setYeniBanka] = useState('');
   const [yeniBankaBakiye, setYeniBankaBakiye] = useState('');
   const [yeniOdeme, setYeniOdeme] = useState('');
-  const [birikimTur, setBirikimTur] = useState('TL');
-  const [birikimMiktar, setBirikimMiktar] = useState('');
 
   // UI Durumları
   const [acikBankaId, setAcikBankaId] = useState(null);
@@ -80,7 +77,6 @@ export default function App() {
       const { data: islemData } = await supabase.from('islem').select('*').eq('ay', ay).eq('user_id', userId).order('tarih', { ascending: false });
       const { data: bankaData } = await supabase.from('banka').select('*').eq('user_id', userId);
       const { data: duzenliData } = await supabase.from('duzenli_odeme').select('*').eq('user_id', userId);
-      const { data: birikimData } = await supabase.from('birikim').select('*').eq('user_id', userId);
 
       if (islemData) setIslemler(islemData);
       if (bankaData) {
@@ -88,7 +84,6 @@ export default function App() {
         if (bankaData.length > 0 && !secilenBanka) setSecilenBanka(bankaData[0].banka_adi);
       }
       if (duzenliData) setDuzenliOdemeler(duzenliData);
-      if (birikimData) setBirikimler(birikimData);
     } catch (err) {
       console.error("Veri çekme hatası:", err);
     }
@@ -174,20 +169,6 @@ export default function App() {
     setYeniOdeme('');
   };
 
-  const birikimEkle = async () => {
-    if (!birikimMiktar || isNaN(birikimMiktar)) return alert("Geçerli bakiye girin.");
-    const { data, error } = await supabase.from('birikim').insert([{ tur: birikimTur, miktar: Number(birikimMiktar), user_id: session.user.id }]).select();
-    if (error) return alert("Birikim hatası: " + error.message);
-    if (data) setBirikimler([...birikimler, data[0]]);
-    setBirikimMiktar('');
-  };
-
-  const birikimSil = async (id) => {
-    const { error } = await supabase.from('birikim').delete().eq('id', id);
-    if (error) return alert("Silme hatası: " + error.message);
-    setBirikimler(birikimler.filter(b => b.id !== id));
-  };
-
   const duzenliOdemeSil = async (id) => {
     const { error } = await supabase.from('duzenli_odeme').delete().eq('id', id);
     if (error) return alert("Silme hatası: " + error.message);
@@ -253,6 +234,7 @@ export default function App() {
 
   const toplamGelir = islemler.filter(i => i.type === 'gelir').reduce((acc, i) => acc + Number(i.miktar), 0);
   const toplamGider = islemler.filter(i => i.type === 'gider').reduce((acc, i) => acc + Number(i.miktar), 0);
+  const toplamBankaBakiye = bankalar.reduce((acc, b) => acc + Number(b.bakiye || 0), 0);
   const grafikVerisi = [{ name: 'Gelir', value: toplamGelir }, { name: 'Gider', value: toplamGider }].filter(item => item.value > 0);
 
   // GİRİŞ / KAYIT EKRANI
@@ -289,7 +271,7 @@ export default function App() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '15px', padding: '20px', boxSizing: 'border-box', flex: 1 }}>
         
-        {/* SOL: DÜZENLİ ÖDEMELER & BİRİKİMLER */}
+        {/* SOL: DÜZENLİ ÖDEMELER & YAPILAN İŞLEMLER */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <div style={{ background: '#fff', padding: '15px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <h3>📅 Düzenli Ödemeler</h3>
@@ -315,36 +297,25 @@ export default function App() {
           </div>
 
           <div style={{ background: '#fff', padding: '15px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <h3>💰 Birikimlerim</h3>
-            <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
-              <select value={birikimTur} onChange={e => setBirikimTur(e.target.value)} style={{ padding: '6px' }}>
-                <option value="TL">TL</option>
-                <option value="Döviz">Döviz ($/€)</option>
-                <option value="Altın">Altın (gr)</option>
-              </select>
-              <input type="number" placeholder="Miktar" value={birikimMiktar} onChange={e => setBirikimMiktar(e.target.value)} style={{ flex: 1, padding: '6px' }} />
-              <button onClick={birikimEkle} style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Ekle</button>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #ccc' }}>
-                  <th>Tür</th>
-                  <th>Miktar</th>
-                  <th style={{ width: '30px' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {birikimler.map(b => (
-                  <tr key={b.id} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: '6px 0' }}>{b.tur}</td>
-                    <td style={{ padding: '6px 0', fontWeight: 'bold' }}>{b.miktar}</td>
-                    <td style={{ padding: '6px 0', textAlign: 'right' }}>
-                      <button onClick={() => birikimSil(b.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: '14px' }} title="Sil">🗑️</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <h3>📋 Yapılan İşlemler</h3>
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              {islemler.map(i => (
+                <li key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee' }}>
+                  <div>
+                    <div style={{ fontWeight: '500' }}>{i.baslik}</div>
+                    <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                      📅 {i.tarih} | 🏦 {i.banka_adi}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: i.type === 'gelir' ? 'green' : 'red', fontWeight: 'bold' }}>
+                      {i.type === 'gelir' ? '+' : '-'}{i.miktar}₺
+                    </span>
+                    <button onClick={() => islemSil(i.id, i.miktar, i.type, i.banka_adi, i.baslik)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '14px', padding: '2px 4px' }} title="İşlemi Sil">🗑️</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
@@ -362,10 +333,10 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-around', background: '#f8f9fa', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-around', background: '#f8f9fa', padding: '10px', borderRadius: '6px', marginBottom: '15px', textAlign: 'center' }}>
             <div><small>Gelir</small><h4 style={{ color: 'green', margin: 0 }}>+{toplamGelir}₺</h4></div>
             <div><small>Gider</small><h4 style={{ color: 'red', margin: 0 }}>-{toplamGider}₺</h4></div>
-            <div><small>Kalan</small><h4 style={{ margin: 0 }}>{toplamGelir - toplamGider}₺</h4></div>
+            <div><small>Toplam Banka Hesaplarımdaki Para Miktarı</small><h4 style={{ margin: 0, color: '#2563eb' }}>{toplamBankaBakiye}₺</h4></div>
           </div>
 
           <form onSubmit={islemEkle} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
@@ -401,7 +372,7 @@ export default function App() {
           )}
         </div>
 
-        {/* SAĞ: BANKALAR & YAPILAN İŞLEMLER */}
+        {/* SAĞ: BANKALAR */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <div style={{ background: '#fff', padding: '15px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -442,28 +413,6 @@ export default function App() {
                       Kalan Bakiye: <strong>{b.bakiye} ₺</strong>
                     </div>
                   )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div style={{ background: '#fff', padding: '15px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <h3>📋 Yapılan İşlemler</h3>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {islemler.map(i => (
-                <li key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee' }}>
-                  <div>
-                    <div style={{ fontWeight: '500' }}>{i.baslik}</div>
-                    <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                      📅 {i.tarih} | 🏦 {i.banka_adi}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: i.type === 'gelir' ? 'green' : 'red', fontWeight: 'bold' }}>
-                      {i.type === 'gelir' ? '+' : '-'}{i.miktar}₺
-                    </span>
-                    <button onClick={() => islemSil(i.id, i.miktar, i.type, i.banka_adi, i.baslik)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '14px', padding: '2px 4px' }} title="İşlemi Sil">🗑️</button>
-                  </div>
                 </li>
               ))}
             </ul>
